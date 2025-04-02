@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #e5ddd5;
+            margin: 0;
+            padding: 20px;
+        }
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .message > div {
+            position: relative;
+            display: inline-block;
+            margin: 10px 0;
+            padding: 10px;
+            max-width: 70%;
+            word-wrap: break-word;
+            min-width: 20%;
+        }
+        .message.received > div {
+            background-color: #fff;
+            border-radius: 0px 8px 8px 8px;
+        }
+        .message.sent > div {
+            background-color: #dcf8c6;
+            border-radius: 8px 0px 8px 8px;
+        }
+        .message.sent {
+            display: flex; 
+            justify-content: flex-end;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+            margin-top: 10px;
+            text-align: right;
+        }
+        .username {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .attachment {
+            margin-top: 5px;
+        }
+        .attachment img {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+        .message.received > div::before,
+        .message.sent > div::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            width: 0;
+            height: 0;
+            border-style: solid;
+           
+         }
+        .message.received > div::before {
+            left: -10px;
+            border-width: 10px 0px 0px 10px;
+            border-color:#fff transparent transparent transparent;
+        }
+        .message.sent > div::before {
+            right: -10px;
+            border-width: 10px 10px 0px 0px;
+            border-color:#dcf8c6 transparent transparent transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <input type="file" accept=".txt" @change="loadChat" />
+        <div class="chat-container">
+            <div v-for="(message, index) in messages" :key="index" class="message"
+                :class="{ 'sent': isSent(message.username), 'received': !isSent(message.username) }">
+                <div>                    
+                    <div>
+                        <div class="username">{{ cleanUsername(message.username) }}</div>
+                        <div v-if="!hasAttachment(message.content)">{{ message.content }}</div>
+                        <template v-else>
+                            <span>{{ cleanContent(message.content) }}</span>
+                            <div class="attachment">
+                                <img v-if="isImage(message.content)" :src="getAttachmentUrl(message.content)" 
+                                    @error="handleMediaError($event, getAttachmentUrl(message.content))">
+                                <video v-else-if="isVideo(message.content)" :src="getAttachmentUrl(message.content)" 
+                                    controls @error="handleMediaError($event, getAttachmentUrl(message.content))"></video>
+                                <audio v-else-if="isAudio(message.content)" :src="getAttachmentUrl(message.content)" 
+                                    controls @error="handleMediaError($event, getAttachmentUrl(message.content))"></audio>
+                                <span v-else>Mídia: {{ getAttachmentUrl(message.content) }}</span>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="timestamp">{{ message.timestamp }}</div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    messages: []
+                };
+            },
+            methods: {
+                loadChat(event) {
+                    const files = event.target.files;
+                    if (!files || files.length === 0) return;
+
+                    const file = files[0];
+                    const reader = new FileReader();
+
+                    reader.onload = (e) => {
+                        const text = e.target.result;
+                        const messageRegex = /\[(\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}:\d{2})\]\s*([^:]+):\s*([^[]+)(?=\[|$)/g;
+                        this.messages = [];
+                        
+                        let match;
+                        while ((match = messageRegex.exec(text)) !== null) {
+                            const [_, timestamp, username, content] = match;
+                            this.messages.push({
+                                timestamp: timestamp.trim(),
+                                username: username.trim(),
+                                content: content.trim()
+                            });
+                        }
+                    };
+
+                    reader.onerror = () => {
+                        this.messages = [{ timestamp: '', username: '', content: 'Erro ao carregar o arquivo.' }];
+                    };
+
+                    reader.readAsText(file);
+                },
+                isSent(username) {
+                    return username.startsWith('~');
+                },
+                cleanUsername(username) {
+                    return username.replace('~', '');
+                },
+                hasAttachment(content) {
+                    return /‎<anexado: (.*?)>/.test(content);
+                },
+                getAttachmentUrl(content) {
+                    const match = content.match(/‎<anexado: (.*?)>/);
+                    return match ? match[1] : '';
+                },
+                cleanContent(content) {
+                    return content.replace(/‎<anexado: (.*?)>/, '').trim();
+                },
+                isImage(content) {
+                    const url = this.getAttachmentUrl(content);
+                    const ext = url.split('.').pop().toLowerCase();
+                    return ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
+                },
+                isVideo(content) {
+                    const url = this.getAttachmentUrl(content);
+                    return url.toLowerCase().endsWith('.mp4');
+                },
+                isAudio(content) {
+                    const url = this.getAttachmentUrl(content);
+                    return url.toLowerCase().endsWith('.opus');
+                },
+                handleMediaError(event, url) {
+                    event.target.style.display = 'none';
+                    const parent = event.target.parentElement;
+                    const errorSpan = document.createElement('span');
+                    errorSpan.textContent = `Mídia não encontrada: ${url}`;
+                    parent.appendChild(errorSpan);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
