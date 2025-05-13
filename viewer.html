@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload de Arquivo com Vue.js</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #f0f0f0;
+      font-family: Arial, sans-serif;
+      color: #555;
+    }
+
+    .dropzone-container {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .dropzone {
+      height: 400px;
+      padding: 32px;
+      border: 3px dashed #aaa;
+      border-radius: 10px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .dropzone:hover {
+      background: #f9f9f9;
+      border-color: #333;
+    }
+
+    .dropzone.dragover {
+      background: #e0f7fa;
+      border-color: #00796b;
+    }
+
+    .info-text {
+      font-size: 16px;
+      padding: 10px;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    ol {
+      text-align: left;
+      padding-left: 0;
+      list-style: inside decimal;
+    }
+
+    .user-list-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 400px;
+    }
+
+    .user-item {
+      padding: 15px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s;
+      text-align: center;
+    }
+
+    .user-item:hover {
+      background: #f9f9f9;
+    }
+
+    .user-item.selected {
+      background: #e0f7fa;
+      border-color: #00796b;
+    }
+
+    .chat-container {
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      background: #fff;
+      max-width: 800px;
+      margin: 20px auto;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .message > div {
+      position: relative;
+      display: inline-block;
+      margin: 10px 0;
+      padding: 10px;
+      max-width: 70%;
+      word-wrap: break-word;
+      min-width: 20%;
+    }
+    .message.received > div {
+      background-color: #eee;
+      border-radius: 0px 8px 8px 8px;
+    }
+    .message.sent > div {
+      background-color: #dcf8c6;
+      border-radius: 8px 0px 8px 8px;
+    }
+    .message.sent {
+      display: flex; 
+      justify-content: flex-end;
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #666;
+      margin-bottom: 5px;
+      margin-top: 10px;
+      text-align: right;
+    }
+    .username {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .attachment {
+      margin-top: 5px;
+    }
+    .attachment img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .message.received > div::before,
+    .message.sent > div::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      
+    }
+    .message.received > div::before {
+      left: -10px;
+      border-width: 10px 0px 0px 10px;
+      border-color:#eee transparent transparent transparent;
+    }
+    .message.sent > div::before {
+      right: -10px;
+      border-width: 10px 10px 0px 0px;
+      border-color:#dcf8c6 transparent transparent transparent;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div v-if="messages.length == 0" class="dropzone-container">
+    <div 
+      class="dropzone"
+      :class="{ dragover: isDragOver }"
+      @click="openFileDialog"
+      @dragover.prevent="handleDragOver"
+      @dragleave.prevent="handleDragLeave"
+      @drop.prevent="handleDrop">
+      <div class="info-text">
+
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="#1DAA61" class="bi bi-whatsapp" viewBox="0 0 16 16">
+              <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
+          </svg>
+
+          <h2>How to open the conversation viewer?</h2>
+          <ol>
+              <li>Open the <strong>viewer.html</strong> file inside the folder where the conversation media files are located;</li>
+              <li>Click here or drag and drop the <strong>.txt</strong> file of the conversation you want to view.</li>
+          </ol>
+      </div>
+      <input 
+        type="file" 
+        ref="fileInput" 
+        accept=".txt" 
+        @change="handleFileSelect">
+    </div>
+  </div>
+
+  <div v-if="messages.length > 0 && !mainUser" class="user-list-container">
+    <h2>Select the main Interlocutor:</h2>
+
+    <div class="user-list">
+      <div 
+        v-for="user in users" 
+        :key="user.id" 
+        class="user-item"
+        :class="{ selected: selectedUser && selectedUser.id === user.id }"
+        @click="selectMainUser(user.name)"
+      >
+        {{ user.name }}
+      </div>
+    </div>
+  </div>
+
+  <div v-if="messages.length > 0 && mainUser" class="chat-container">
+    <div v-for="(message, index) in messages" :key="index" class="message"
+    :class="{ 'sent': isSent(message.username), 'received': !isSent(message.username) }">
+      <div>                    
+        <div>
+          <div class="username">{{ cleanUsername(message.username) }}</div>
+          <div style="white-space: pre-line;" v-if="!hasAttachment(message.content)">{{ message.content }}</div>
+          <template v-else>
+            <span>{{ cleanContent(message.content) }}</span>
+            <div class="attachment">
+              <img v-if="isImage(message.content)" :src="getAttachmentUrl(message.content)" 
+              @error="handleMediaError($event, getAttachmentUrl(message.content))">
+              <video v-else-if="isVideo(message.content)" :src="getAttachmentUrl(message.content)" 
+              controls @error="handleMediaError($event, getAttachmentUrl(message.content))"></video>
+              <audio v-else-if="isAudio(message.content)" :src="getAttachmentUrl(message.content)" 
+              controls @error="handleMediaError($event, getAttachmentUrl(message.content))"></audio>
+              <span v-else>Mídia: {{ getAttachmentUrl(message.content) }}</span>
+            </div>
+          </template>
+        </div>
+        
+        <div class="timestamp">{{ message.timestamp }}</div>
+      </div>
+    </div>    
+  </div>
+</div>
+
+<script>
+  const { createApp, ref, getCurrentInstance } = Vue;
+  
+  createApp({
+    data() {
+      return {
+        messages: [],
+        users: [],
+        mainUser: null
+      };
+    },
+    setup() {
+      const isDragOver = ref(false);
+      const fileInput = ref(null);
+      const instance = getCurrentInstance();
+      
+      const openFileDialog = () => {
+        fileInput.value.click();
+      };
+      
+      const handleFileSelect = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          processFile(file);
+        }
+      };
+      
+      const handleDragOver = () => {
+        isDragOver.value = true;
+      };
+      
+      const handleDragLeave = () => {
+        isDragOver.value = false;
+      };
+      
+      const handleDrop = (event) => {
+        isDragOver.value = false;
+        const file = event.dataTransfer.files[0];
+        if (file) {
+          processFile(file);
+        }
+      };
+      
+      const processFile = (file) => {
+        instance.proxy.loadChat(file);
+      };
+      
+      return {        
+        isDragOver,
+        fileInput,
+        openFileDialog,
+        handleFileSelect,
+        handleDragOver,
+        handleDragLeave,
+        handleDrop
+      };
+    },
+    mounted() {
+      if(localStorage.getItem("messages") && localStorage.getItem("mainUser")) {
+        this.messages = JSON.parse(localStorage.getItem("messages"));
+        this.mainUser = localStorage.getItem("mainUser");
+
+        console.log(this.mainUser);
+        console.log(this.messages);
+      }
+    },
+    methods: {
+      loadChat(file) {
+        if (!file) return;
+        
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          const text = e.target.result;
+          const messageRegex = /(?:\[(\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}:\d{2})\]|\b(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}))\s[-]?\s?([^:]+): ([\s\S]*?)(?=\n(?:\[\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}:\d{2}\]|(?:\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}))|$)/g;
+          
+          this.messages = [];
+          
+          let match;
+          while ((match = messageRegex.exec(text)) !== null) {
+            const timestamp = match[1] || match[2];
+            const username = match[3];
+            const content = match[4];
+            
+            this.messages.push({
+              timestamp: timestamp.trim(),
+              username: username.trim(),
+              content: content.trim()                                
+            });
+          }
+          this.loadUsers();
+        };
+        
+        reader.onerror = () => {
+          this.messages = [{ timestamp: '', username: '', content: 'Erro ao carregar o arquivo.' }];
+        };
+        
+        reader.readAsText(file);
+      },
+      loadUsers() {
+        if (!this.messages || this.messages.length == 0) return;
+        this.users = Array.from(
+          new Map(this.messages.map(item => [item.username, { name: item.username }])).values()
+        );
+      },
+      isSent(username) {
+        return username == this.mainUser;
+      },
+      cleanUsername(username) {
+        //return username.replace('~', '');
+      },
+      hasAttachment(content) {
+        return /‎<anexado: (.*?)>/.test(content);
+      },
+      getAttachmentUrl(content) {
+        const match = content.match(/‎<anexado: (.*?)>/);
+        return match ? match[1] : '';
+      },
+      cleanContent(content) {
+        return content.replace(/‎<anexado: (.*?)>/, '').trim();
+      },
+      isImage(content) {
+        const url = this.getAttachmentUrl(content);
+        const ext = url.split('.').pop().toLowerCase();
+        return ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
+      },
+      isVideo(content) {
+        const url = this.getAttachmentUrl(content);
+        return url.toLowerCase().endsWith('.mp4');
+      },
+      isAudio(content) {
+        const url = this.getAttachmentUrl(content);
+        return url.toLowerCase().endsWith('.opus');
+      },
+      handleMediaError(event, url) {
+        event.target.style.display = 'none';
+        const parent = event.target.parentElement;
+        const errorSpan = document.createElement('span');
+        errorSpan.textContent = `Mídia não encontrada: ${url}`;
+        parent.appendChild(errorSpan);
+      },
+      selectMainUser(name) {
+        this.mainUser = name;
+        this.saveCookies();
+      },
+      saveCookies() {
+        localStorage.setItem("mainUser", this.mainUser);
+        localStorage.setItem("messages", JSON.stringify(this.messages));
+      }
+    }
+  }).mount('#app');
+</script>
+
+</body>
+</html>
